@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Оракул — спроси, и вселенная ответит</title>
+<meta name="description" content="Задай вопрос светящемуся шару и получи вердикт. Да, нет или «туман». Без регистрации и СМС.">
+<meta name="theme-color" content="#05060f">
+<meta property="og:title" content="Оракул — спроси, и вселенная ответит">
+<meta property="og:description" content="Задай вопрос светящемуся шару и получи вердикт.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='40' fill='%237c5cff'/%3E%3Ccircle cx='38' cy='36' r='12' fill='%23fff' opacity='.5'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #05060f;
+    --c1: #7c5cff;
+    --c2: #22d3ee;
+    --text: #e8e9ff;
+    --muted: #8c90b8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    background: radial-gradient(ellipse at 50% 30%, #12123a 0%, var(--bg) 65%);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    overflow-x: hidden;
+    min-height: 100dvh;
+  }
+  #bg { position: fixed; inset: 0; z-index: 0; }
+  main {
+    position: relative; z-index: 1;
+    min-height: 100dvh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 28px 20px calc(28px + env(safe-area-inset-bottom));
+    gap: 22px; text-align: center;
+  }
+  .brand {
+    font-size: 12px; letter-spacing: .5em; text-transform: uppercase; color: var(--muted);
+    padding-left: .5em;
+  }
+
+  /* ---------- ШАР ---------- */
+  .orb-wrap { position: relative; width: min(62vw, 280px); aspect-ratio: 1; cursor: pointer; }
+  .orb-wrap::before {            /* аура */
+    content: ""; position: absolute; inset: -30%;
+    background: radial-gradient(circle, var(--c1) 0%, transparent 62%);
+    opacity: .35; filter: blur(30px);
+    animation: aura 4s ease-in-out infinite;
+    transition: background 1s;
+  }
+  .orb {
+    position: absolute; inset: 0; border-radius: 50%;
+    background:
+      radial-gradient(circle at 32% 28%, rgba(255,255,255,.85) 0%, rgba(255,255,255,0) 22%),
+      radial-gradient(circle at 70% 78%, var(--c2) 0%, transparent 55%),
+      radial-gradient(circle at 50% 50%, var(--c1) 0%, #0b0b25 100%);
+    box-shadow: inset 0 -18px 50px rgba(0,0,0,.55), inset 0 10px 40px rgba(255,255,255,.12), 0 0 80px -10px var(--c1);
+    animation: float 6s ease-in-out infinite;
+    transition: box-shadow 1s;
+  }
+  .orb::after {                  /* вращающийся туман внутри */
+    content: ""; position: absolute; inset: 8%; border-radius: 50%;
+    background: conic-gradient(from 0deg, transparent, rgba(255,255,255,.22), transparent 40%, rgba(255,255,255,.12), transparent 80%);
+    filter: blur(10px);
+    animation: spin 9s linear infinite;
+    mix-blend-mode: screen;
+  }
+  .orb-wrap.thinking .orb { animation: shake .35s linear infinite; }
+  .orb-wrap.thinking .orb::after { animation-duration: 1s; }
+  .orb-wrap.thinking::before { animation-duration: .6s; opacity: .7; }
+
+  @keyframes float { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-12px) } }
+  @keyframes aura  { 0%,100% { transform: scale(1) } 50% { transform: scale(1.12) } }
+  @keyframes spin  { to { transform: rotate(360deg) } }
+  @keyframes shake {
+    0% { transform: translate(0,0) } 20% { transform: translate(-6px,3px) }
+    40% { transform: translate(5px,-4px) } 60% { transform: translate(-4px,-3px) }
+    80% { transform: translate(6px,4px) } 100% { transform: translate(0,0) }
+  }
+
+  /* ---------- ОТВЕТ ---------- */
+  .answer { min-height: 118px; display: flex; flex-direction: column; align-items: center; gap: 10px; max-width: 520px; }
+  .hint { color: var(--muted); font-size: 15px; line-height: 1.5; }
+  .verdict {
+    font-size: clamp(44px, 12vw, 72px); font-weight: 900; letter-spacing: .04em; line-height: 1;
+    background: linear-gradient(90deg, var(--c2), var(--c1));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    opacity: 0; transform: scale(.7); filter: blur(12px);
+    transition: all .7s cubic-bezier(.2,.9,.2,1.2);
+  }
+  .verdict.show { opacity: 1; transform: none; filter: none; }
+  .phrase { font-size: 18px; line-height: 1.45; min-height: 1.45em; color: var(--text); }
+  .cursor::after { content: "▍"; color: var(--c2); animation: blink .8s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0 } }
+
+  /* ---------- ФОРМА ---------- */
+  form { width: min(100%, 520px); display: flex; gap: 10px; }
+  input {
+    flex: 1; min-width: 0;
+    background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14);
+    color: var(--text); font-size: 16px; padding: 16px 18px; border-radius: 16px;
+    outline: none; backdrop-filter: blur(8px);
+    transition: border-color .25s, box-shadow .25s;
+  }
+  input::placeholder { color: #6b6f9a; }
+  input:focus { border-color: var(--c1); box-shadow: 0 0 0 4px color-mix(in srgb, var(--c1) 25%, transparent); }
+  input.err { animation: shake .3s linear 2; border-color: #ff4d6d; }
+  button {
+    font: inherit; font-weight: 700; cursor: pointer; color: #fff; border: 0;
+    padding: 0 22px; border-radius: 16px;
+    background: linear-gradient(135deg, var(--c1), var(--c2));
+    box-shadow: 0 10px 30px -10px var(--c1);
+    transition: transform .15s, filter .2s;
+  }
+  button:hover { filter: brightness(1.12); }
+  button:active { transform: scale(.95); }
+  button:disabled { opacity: .5; cursor: default; }
+
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; min-height: 44px; }
+  .ghost {
+    background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14);
+    box-shadow: none; padding: 11px 18px; font-size: 14px; font-weight: 600;
+    opacity: 0; pointer-events: none; transform: translateY(8px);
+    transition: opacity .4s, transform .4s;
+  }
+  .actions.show .ghost { opacity: 1; pointer-events: auto; transform: none; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 520px; }
+  .chip {
+    background: transparent; border: 1px solid rgba(255,255,255,.12); box-shadow: none;
+    color: var(--muted); font-size: 13px; font-weight: 500; padding: 7px 13px; border-radius: 999px;
+  }
+  .chip:hover { color: var(--text); border-color: var(--c1); }
+
+  footer { color: #5d6190; font-size: 12px; line-height: 1.6; max-width: 420px; }
+  #count b { color: var(--muted); }
+
+  .toast {
+    position: fixed; left: 50%; bottom: calc(26px + env(safe-area-inset-bottom)); z-index: 5;
+    transform: translate(-50%, 30px); opacity: 0;
+    background: #1b1d4a; border: 1px solid rgba(255,255,255,.15); padding: 12px 20px; border-radius: 14px; font-size: 14px;
+    transition: all .4s;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (max-width: 420px) { button { padding: 0 16px; } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; } }
+</style>
+</head>
+<body>
+<canvas id="bg"></canvas>
+
+<main>
+  <div class="brand">Оракул</div>
+
+  <div class="orb-wrap" id="orbWrap" title="Нажми на шар">
+    <div class="orb"></div>
+  </div>
+
+  <div class="answer" aria-live="polite">
+    <div class="hint" id="hint">Сформулируй вопрос так, чтобы на него можно было ответить «да» или «нет». Остальное — не моя проблема.</div>
+    <div class="verdict" id="verdict"></div>
+    <div class="phrase" id="phrase"></div>
+  </div>
+
+  <div class="actions" id="actions">
+    <button class="ghost" id="again" type="button">Спросить ещё</button>
+    <button class="ghost" id="share" type="button">Поделиться ↗</button>
+  </div>
+
+  <form id="form" autocomplete="off">
+    <input id="q" type="text" maxlength="120" placeholder="Например: писать ей первым(ой)?" enterkeyhint="send">
+    <button id="go" type="submit">Спросить</button>
+  </form>
+
+  <div class="chips" id="chips"></div>
+
+  <footer>
+    <div id="count"></div>
+    Ответ на один и тот же вопрос в течение дня не меняется: оракул не любит, когда его переспрашивают.
+    Развлекательный сервис. Серьёзные решения принимай сам(а).
+  </footer>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ================= ДАННЫЕ ================= */
+  const VERDICTS = {
+    yes: {
+      title: 'ДА', c1: '#22c55e', c2: '#22d3ee',
+      phrases: [
+        'Звёзды сошлись. Делай.',
+        'Вселенная кивает. Без вариантов.',
+        'Да, и даже быстрее, чем ты думаешь.',
+        'Это уже почти случилось.',
+        'Сигнал зелёный. Не тормози.',
+        'Смело. Тебе зайдёт.',
+        'Да. Потом скажешь спасибо.',
+        'Даже шар удивлён, насколько это хорошая идея.',
+        'Чувствуешь мурашки? Это знак.',
+        'Однозначно да. Я проверил(а) трижды.'
+      ]
+    },
+    no: {
+      title: 'НЕТ', c1: '#ff3d6e', c2: '#ff9a3d',
+      phrases: [
+        'Нет. И это к лучшему.',
+        'Даже не думай.',
+        'Вселенная делает вид, что не услышала.',
+        'Нет. Спроси себя в 3 ночи, ответ будет тот же.',
+        'Сигнал красный. Разворачивайся.',
+        'Нет, но ты молодец, что спросил(а).',
+        'Шар молча покачал головой.',
+        'Хорошая попытка. Нет.',
+        'Звёзды вышли покурить. Но по ним и так видно: нет.',
+        'Точно нет. Не спорь с шаром.'
+      ]
+    },
+    maybe: {
+      title: 'ТУМАН', c1: '#a855f7', c2: '#facc15',
+      phrases: [
+        'Рано. Спроси завтра.',
+        'Подбрось монетку. Хотя я вижу, на что ты надеешься.',
+        'Туман рассеется, но не сейчас.',
+        '50 на 50, а остальные 50 зависят от тебя.',
+        'Ответ уже внутри тебя. Ты просто тянешь время.',
+        'Всё сложно. Как и всегда.',
+        'Шар задумался и ушёл пить чай.',
+        'Может быть. Но придётся постараться.',
+        'Вопрос хороший, момент не тот.',
+        'Вселенная пока не определилась. Подожди.'
+      ]
+    }
+  };
+
+  const EXAMPLES = [
+    'Писать ей первым(ой)?',
+    'Купить это сегодня?',
+    'Бросить всё и уехать?',
+    'Будет ли у меня всё хорошо?',
+    'Пойти на эту вечеринку?',
+    'Лечь спать пораньше?',
+    'Сказать как есть?'
+  ];
+
+  /* ================= ХЭШ ================= */
+  // cyrb53: быстрый и хорошо перемешивающий хэш
+  function hash(str, seed = 0) {
+    let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
+    for (let i = 0; i < str.length; i++) {
+      const ch = str.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761);
+      h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+  }
+
+  const today = () => {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  };
+
+  function decide(question, day) {
+    const norm = question.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    const h = hash(norm + '|' + day);
+    const r = h % 100;
+    const key = r < 40 ? 'yes' : r < 75 ? 'no' : 'maybe';
+    const list = VERDICTS[key].phrases;
+    const phrase = list[Math.floor(h / 100) % list.length];
+    return { key, phrase };
+  }
+
+  /* ================= DOM ================= */
+  const $ = id => document.getElementById(id);
+  const form = $('form'), input = $('q'), goBtn = $('go');
+  const orbWrap = $('orbWrap'), verdictEl = $('verdict'), phraseEl = $('phrase');
+  const hint = $('hint'), actions = $('actions');
+  const root = document.documentElement;
+
+  let busy = false, typeTimer = null;
+  let current = null; // {q, day, key, phrase}
+
+  function toast(msg) {
+    const t = $('toast');
+    t.textContent = msg; t.classList.add('show');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => t.classList.remove('show'), 2200);
+  }
+
+  function setColors(key) {
+    const v = VERDICTS[key];
+    root.style.setProperty('--c1', v.c1);
+    root.style.setProperty('--c2', v.c2);
+  }
+
+  function typewrite(text) {
+    clearInterval(typeTimer);
+    phraseEl.textContent = '';
+    phraseEl.classList.add('cursor');
+    let i = 0;
+    typeTimer = setInterval(() => {
+      phraseEl.textContent = text.slice(0, ++i);
+      if (i >= text.length) {
+        clearInterval(typeTimer);
+        setTimeout(() => phraseEl.classList.remove('cursor'), 900);
+      }
+    }, 28);
+  }
+
+  /* ================= ЛОГИКА ================= */
+  function ask(question, day) {
+    if (busy) return;
+    question = question.trim();
+    if (!question) {
+      input.classList.add('err');
+      setTimeout(() => input.classList.remove('err'), 700);
+      input.focus();
+      return;
+    }
+    busy = true;
+    goBtn.disabled = true;
+    day = day || today();
+
+    // сброс прошлого ответа
+    clearInterval(typeTimer);
+    verdictEl.classList.remove('show');
+    phraseEl.textContent = '';
+    phraseEl.classList.remove('cursor');
+    actions.classList.remove('show');
+    hint.style.display = 'none';
+    orbWrap.classList.add('thinking');
+    if (navigator.vibrate) navigator.vibrate([30, 40, 30, 40, 30]);
+
+    const res = decide(question, day);
+
+    setTimeout(() => {
+      orbWrap.classList.remove('thinking');
+      setColors(res.key);
+      verdictEl.textContent = VERDICTS[res.key].title;
+      // перезапуск CSS-перехода
+      void verdictEl.offsetWidth;
+      verdictEl.classList.add('show');
+      if (navigator.vibrate) navigator.vibrate(60);
+
+      setTimeout(() => {
+        typewrite(res.phrase);
+        actions.classList.add('show');
+        busy = false;
+        goBtn.disabled = false;
+      }, 550);
+
+      current = { q: question, day, ...res };
+      try {
+        const n = (+localStorage.getItem('oracle_n') || 0) + 1;
+        localStorage.setItem('oracle_n', n);
+        renderCount(n);
+      } catch (e) {}
+    }, 1700);
+  }
+
+  function renderCount(n) {
+    $('count').innerHTML = n ? 'Вопросов задано тобой: <b>' + n + '</b>' : '';
+  }
+
+  function shareLink() {
+    const u = new URL(location.href.split('?')[0].split('#')[0]);
+    u.searchParams.set('q', current.q);
+    u.searchParams.set('d', current.day);
+    return u.toString();
+  }
+
+  async function share() {
+    if (!current) return;
+    const url = shareLink();
+    const text = 'Я спросил(а) Оракула: «' + current.q + '». Ответ: ' + VERDICTS[current.key].title + '. А тебе что ответит?';
+    if (navigator.share) {
+      try { await navigator.share({ title: 'Оракул', text, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    try {
+      await navigator.clipboard.writeText(text + ' ' + url);
+      toast('Ссылка скопирована');
+    } catch (e) {
+      prompt('Скопируй ссылку:', url);
+    }
+  }
+
+  /* ================= СОБЫТИЯ ================= */
+  form.addEventListener('submit', e => { e.preventDefault(); input.blur(); ask(input.value); });
+  orbWrap.addEventListener('click', () => { if (input.value.trim()) ask(input.value); else input.focus(); });
+  $('again').addEventListener('click', () => {
+    input.value = ''; input.focus();
+    verdictEl.classList.remove('show'); phraseEl.textContent = '';
+    actions.classList.remove('show');
+    hint.style.display = ''; hint.textContent = 'Слушаю. Что на этот раз?';
+  });
+  $('share').addEventListener('click', share);
+
+  // подсказки
+  const chips = $('chips');
+  EXAMPLES.sort(() => Math.random() - .5).slice(0, 4).forEach(t => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'chip'; b.textContent = t;
+    b.addEventListener('click', () => { input.value = t; ask(t); });
+    chips.appendChild(b);
+  });
+
+  // ссылка с ?q=...
+  const params = new URLSearchParams(location.search);
+  const qParam = params.get('q');
+  if (qParam) {
+    input.value = qParam.slice(0, 120);
+    const d = /^\d{4}-\d{2}-\d{2}$/.test(params.get('d') || '') ? params.get('d') : undefined;
+    setTimeout(() => ask(qParam.slice(0, 120), d), 500);
+  }
+  try { renderCount(+localStorage.getItem('oracle_n') || 0); } catch (e) {}
+
+  /* ================= ФОН: ЧАСТИЦЫ ================= */
+  const cv = $('bg'), ctx = cv.getContext('2d');
+  let W, H, dpr, pts = [];
+  const mouse = { x: -999, y: -999 };
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = innerWidth; H = innerHeight;
+    cv.width = W * dpr; cv.height = H * dpr;
+    cv.style.width = W + 'px'; cv.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const n = Math.min(110, Math.floor(W * H / 14000));
+    pts = Array.from({ length: n }, () => ({
+      x: Math.random() * W, y: Math.random() * H,
+      vx: (Math.random() - .5) * .3, vy: (Math.random() - .5) * .3,
+      r: Math.random() * 1.6 + .4
+    }));
+  }
+  addEventListener('resize', resize);
+  addEventListener('pointermove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+  addEventListener('pointerleave', () => { mouse.x = mouse.y = -999; });
+
+  function hexToRgb(h) {
+    h = h.trim().replace('#', '');
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  }
+
+  function frame() {
+    ctx.clearRect(0, 0, W, H);
+    const rgb = hexToRgb(getComputedStyle(root).getPropertyValue('--c1') || '#7c5cff');
+    const col = a => 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',' + a + ')';
+
+    for (const p of pts) {
+      // лёгкое отталкивание от курсора
+      const dx = p.x - mouse.x, dy = p.y - mouse.y, d2 = dx * dx + dy * dy;
+      if (d2 < 14000) { const f = (1 - d2 / 14000) * .6; p.vx += dx / Math.sqrt(d2 + 1) * f * .1; p.vy += dy / Math.sqrt(d2 + 1) * f * .1; }
+      p.vx *= .995; p.vy *= .995;
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
+      if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.283);
+      ctx.fillStyle = col(.7); ctx.fill();
+    }
+    for (let i = 0; i < pts.length; i++) {
+      for (let j = i + 1; j < pts.length; j++) {
+        const a = pts[i], b = pts[j];
+        const dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy;
+        if (d2 < 11000) {
+          ctx.strokeStyle = col((1 - d2 / 11000) * .22);
+          ctx.lineWidth = .7;
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        }
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+  resize();
+  frame();
+})();
+</script>
+</body>
+</html>
